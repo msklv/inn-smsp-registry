@@ -10,7 +10,7 @@ import argparse
 import csv
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, Tuple
 
 
 class INNRegistryChecker:
@@ -94,7 +94,7 @@ class INNRegistryChecker:
             print(f"Registry file not found: {self.registry_path}")
             raise
     
-    def check_inn(self, inn: str) -> tuple[bool, str]:
+    def check_inn(self, inn: str) -> Tuple[bool, str]:
         """
         Check if INN exists in registry.
         
