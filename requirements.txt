@@ -1,0 +1,7 @@
+# No external dependencies required - uses only Python standard library
+# The application uses only built-in modules:
+# - argparse
+# - csv
+# - xml.etree.ElementTree
+# - pathlib
+# - typing
