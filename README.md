@@ -24,4 +24,13 @@ uv sync
 # Запускаем импорт
 python load_msp.py
 uv run python load_msp.py
+
+# Запускаем обогащение 
+uv run python enrich_with_region.py
+```
+
+## Для ускорения БД
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_msp_inn
+ON msp_inn_region (innfl);
 ```
