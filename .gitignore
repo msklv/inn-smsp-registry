@@ -209,3 +209,7 @@ __marimo__/
 
 # Данные для обработки
 data-10012026-structure-*/*.xml
+
+# OS specific files
+Thumbs.db
+.DS_Store

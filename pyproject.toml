@@ -1,0 +1,15 @@
+[project]
+name = "msp-loader"
+version = "0.1.0"
+description = "Load INNFL and region code from MSP XML files into PostgreSQL"
+requires-python = ">=3.10"
+
+dependencies = [
+    "lxml>=5.1.0",
+    "psycopg[binary]>=3.1.18",
+    "python-dotenv>=1.0.1",
+]
+
+[tool.uv]
+# разрешаем бинарные колёса (psycopg, lxml)
+#allow-binary = true
