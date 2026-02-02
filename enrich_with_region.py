@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import csv
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import psycopg
 from dotenv import load_dotenv
@@ -33,27 +33,34 @@ PG_DSN = (
     f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 )
 
-BATCH_SIZE = 10_000  # безопасно для IN (...)
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10000"))
 
 
-# ---------- postgres ----------
+# ---------- SQL ----------
 SQL_LOOKUP = f"""
-SELECT innfl, kodregion
+SELECT inn, kodregion
 FROM {PG_TABLE}
-WHERE innfl = ANY(%s);
+WHERE inn = ANY(%s);
 """
+
+
+def normalize_inn(raw: str) -> str:
+    """
+    Оставляет только цифры (на случай пробелов/кавычек/прочего мусора),
+    ведущие нули сохраняются.
+    """
+    return "".join(ch for ch in (raw or "").strip() if ch.isdigit())
 
 
 def load_regions(conn, inns: List[str]) -> Dict[str, str]:
     """
-    Возвращает dict: ИНН -> КодРегион
+    Возвращает dict: inn -> kodregion
     """
     with conn.cursor() as cur:
         cur.execute(SQL_LOOKUP, (inns,))
         return {inn: region for inn, region in cur.fetchall()}
 
 
-# ---------- main ----------
 def enrich_file() -> None:
     if not INPUT_FILE.exists():
         raise FileNotFoundError(INPUT_FILE)
@@ -69,46 +76,52 @@ def enrich_file() -> None:
         reader = csv.DictReader(fin, delimiter=";")
         fieldnames = reader.fieldnames
 
-        if not fieldnames or "ИНН" not in fieldnames or "Регион" not in fieldnames:
-            raise ValueError("Ожидаются колонки: ИНН и Регион")
+        if not fieldnames:
+            raise ValueError("Пустой файл или не удалось прочитать заголовок")
+
+        # ожидаем эти колонки, как в примере пользователя
+        if "ИНН" not in fieldnames or "Регион" not in fieldnames:
+            raise ValueError("Ожидаются колонки: ИНН и Регион (разделитель ';')")
 
         writer = csv.DictWriter(fout, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
 
-        batch = []
-        rows = []
+        batch_inns: List[str] = []
+        batch_rows: List[dict] = []
         total = 0
 
         def flush():
             nonlocal total
-            if not batch:
+            if not batch_inns:
                 return
 
-            region_map = load_regions(conn, batch)
+            region_map = load_regions(conn, batch_inns)
 
-            for row in rows:
-                inn = row["ИНН"].strip()
-                if not row["Регион"] and inn in region_map:
-                    row["Регион"] = region_map[inn]
+            for row in batch_rows:
+                inn = normalize_inn(row.get("ИНН", ""))
+                if inn and (not (row.get("Регион") or "").strip()):
+                    reg = region_map.get(inn)
+                    if reg:
+                        row["Регион"] = reg
                 writer.writerow(row)
                 total += 1
 
-            batch.clear()
-            rows.clear()
+            batch_inns.clear()
+            batch_rows.clear()
 
-            if total % 10_000 == 0:
+            if total % 10000 == 0:
                 print(f"[INFO] Processed: {total}")
 
         for row in reader:
-            inn = row["ИНН"].strip()
-            batch.append(inn)
-            rows.append(row)
+            inn = normalize_inn(row.get("ИНН", ""))
+            batch_inns.append(inn)
+            batch_rows.append(row)
 
-            if len(batch) >= BATCH_SIZE:
+            if len(batch_inns) >= BATCH_SIZE:
                 flush()
 
         flush()
-
+        
         print(f"[DONE] Rows processed: {total}")
 
 
